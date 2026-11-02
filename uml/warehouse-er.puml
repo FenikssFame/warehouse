@@ -1,0 +1,128 @@
+@startuml
+skinparam dpi 140
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam nodesep 45
+skinparam ranksep 70
+skinparam ArrowFontSize 10
+skinparam ArrowColor #40566B
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #40566B
+  FontColor #172A3A
+  FontSize 10
+  HeaderFontSize 11
+}
+hide circle
+hide empty members
+
+title ER-диаграмма PostgreSQL: склад магазина
+
+class product_categories <<table>> #EAF2F8 {
+  +id : BIGINT PK
+  +name : VARCHAR(120) UNIQUE
+}
+
+class suppliers <<table>> #EAF2F8 {
+  +id : BIGINT PK
+  +name : VARCHAR(160) UNIQUE
+  +inn : VARCHAR(20)
+  +contact : VARCHAR(200)
+}
+
+class products <<table>> #EAF2F8 {
+  +id : BIGINT PK
+  +sku : VARCHAR(50) UNIQUE
+  +name : VARCHAR(200)
+  +category_id : BIGINT FK
+  +unit : VARCHAR(20)
+  +sale_price_cents : BIGINT
+  +tax_rate_bp : INT
+  +shelf_life_days : INT
+  +min_stock : INT
+  +is_active : BOOLEAN
+}
+
+class supplies <<table>> #EAF2F8 {
+  +id : BIGINT PK
+  +supplier_id : BIGINT FK
+  +invoice_no : VARCHAR(80)
+  +supplied_at : TIMESTAMPTZ
+  +note : TEXT
+}
+
+class supply_items <<table>> #EAF2F8 {
+  +id : BIGINT PK
+  +supply_id : BIGINT FK
+  +product_id : BIGINT FK
+  +quantity : INT
+  +remaining_quantity : INT
+  +unit_cost_cents : BIGINT
+  +expiry_date : DATE
+}
+
+class sales <<table>> #EAF2F8 {
+  +id : BIGINT PK
+  +sold_at : TIMESTAMPTZ
+  +note : TEXT
+}
+
+class sale_items <<table>> #EAF2F8 {
+  +id : BIGINT PK
+  +sale_id : BIGINT FK
+  +product_id : BIGINT FK
+  +quantity : INT
+  +unit_price_cents : BIGINT
+  +revenue_cents : BIGINT
+  +tax_cents : BIGINT
+  +cost_cents : BIGINT
+  +profit_cents : BIGINT
+}
+
+class write_offs <<table>> #EAF2F8 {
+  +id : BIGINT PK
+  +product_id : BIGINT FK
+  +supply_item_id : BIGINT FK
+  +quantity : INT
+  +reason : VARCHAR(20)
+  +cost_cents : BIGINT
+  +written_off_at : TIMESTAMPTZ
+  +comment : TEXT
+}
+
+class v_product_stock <<view>> #F2F4F6 {
+  +product_id : BIGINT
+  +sku : VARCHAR
+  +name : VARCHAR
+  +category : VARCHAR
+  +stock_quantity : INT
+  +stock_cost_cents : BIGINT
+  +nearest_expiry : DATE
+  +stock_status : TEXT
+}
+
+product_categories "1" -- "0..*" products : category_id
+suppliers "1" -- "0..*" supplies : supplier_id
+supplies "1" *-- "1..*" supply_items : supply_id
+products "1" -- "0..*" supply_items : product_id
+sales "1" *-- "1..*" sale_items : sale_id
+products "1" -- "0..*" sale_items : product_id
+products "1" -- "0..*" write_offs : product_id
+supply_items "1" -- "0..*" write_offs : supply_item_id
+
+v_product_stock ..> products : агрегирует
+v_product_stock ..> supply_items : остатки и сроки
+
+note bottom of supply_items
+  remaining_quantity уменьшается
+  при продаже и списании.
+  Списание хранит supply_item_id,
+  поэтому в отчёте виден срок партии.
+end note
+
+note bottom of sale_items
+  profit_cents = revenue_cents
+                 - tax_cents - cost_cents
+end note
+
+@enduml

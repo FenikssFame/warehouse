@@ -1,0 +1,174 @@
+@startuml
+skinparam dpi 140
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam nodesep 45
+skinparam ranksep 60
+skinparam ArrowFontSize 10
+skinparam ArrowColor #40566B
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #40566B
+  FontColor #172A3A
+  FontSize 10
+  HeaderFontSize 11
+}
+skinparam package {
+  BackgroundColor #F4F7FA
+  BorderColor #9FB3C8
+  FontColor #172A3A
+  FontSize 13
+  FontStyle bold
+}
+hide circle
+hide empty members
+
+title UML-диаграмма классов: слои приложения
+
+package "db — PostgreSQL/libpq" as db {
+  class Database {
+    -connection_ : PGconn*
+    +connect(config : DbConfig) : void
+    +disconnect() : void
+    +isConnected() : bool
+    +exec(sql, params) : Result
+    +begin() : void
+    +commit() : void
+    +rollback() : void
+  }
+
+  class Result {
+    -result_ : PGresult*
+    +rowCount() : int
+    +columnCount() : int
+    +text(row, column) : string
+    +int64(row, column) : int64_t
+    +integer(row, column) : int
+    +boolean(row, column) : bool
+  }
+
+  class Transaction {
+    -database_ : Database&
+    -active_ : bool
+    +commit() : void
+  }
+
+  class DbConfig {
+    +host : string
+    +port : int
+    +database : string
+    +user : string
+    +password : string
+    +sslMode : string
+    +isComplete() : bool
+  }
+}
+
+package "repository — SQL-запросы" as repository {
+  class CatalogRepository {
+    -database_ : Database&
+    +listProducts() : vector<Product>
+    +getProduct(productId) : Product
+    +listCategories() : vector<Category>
+    +listSuppliers() : vector<Supplier>
+    +getOrCreateCategory(name) : int64_t
+    +getOrCreateSupplier(name) : int64_t
+    +createProduct(input) : int64_t
+  }
+
+  class StockRepository {
+    -database_ : Database&
+    +insertSupply(input, supplierId, productId) : int64_t
+    +lockBatches(productId, expiredOnly) : vector<StockBatch>
+    +decreaseBatch(batchId, quantity) : void
+    +insertSale(...) : int64_t
+    +insertWriteOff(...) : int64_t
+    +listSupplies(limit) : vector<SupplyRow>
+    +listSales(limit) : vector<SaleRow>
+    +listWriteOffs(limit) : vector<WriteOffRow>
+  }
+
+  class ReportRepository {
+    -database_ : Database&
+    +profitReport(from, to) : ProfitReport
+    +expiredWriteOffs(from, to) : vector<ExpiredWriteOffRow>
+    +expiringSoon(days) : vector<ExpiringRow>
+  }
+}
+
+package "service — бизнес-логика" as service {
+  class WarehouseService {
+    -database_ : Database&
+    -catalog_ : CatalogRepository
+    -stock_ : StockRepository
+    -reports_ : ReportRepository
+    +listProducts() : vector<Product>
+    +createProduct(input) : int64_t
+    +receiveSupply(input) : void
+    +sell(input) : SaleResult
+    +writeOff(input) : WriteOffResult
+    +listSupplies(limit) : vector<SupplyRow>
+    +listSales(limit) : vector<SaleRow>
+    +listWriteOffs(limit) : vector<WriteOffRow>
+    +profitReport(from, to) : ProfitReport
+    +expiredWriteOffs(from, to) : vector<ExpiredWriteOffRow>
+    +expiringSoon(days) : vector<ExpiringRow>
+  }
+}
+
+package "ui — Win32 GUI" as ui {
+  class MainWindow {
+    -database_ : Database&
+    -service_ : WarehouseService&
+    -config_ : DbConfig&
+    -activeTab_ : Tab
+    +create(showCommand) : bool
+    +run() : int
+    -createControls() : void
+    -layoutControls() : void
+    -reload() : void
+    -generateReport() : void
+    -primaryAction() : void
+    -openSettings() : void
+  }
+
+  class ConfigStore <<utility>> {
+    +path() : filesystem::path
+    +load() : DbConfig
+    +save(config) : void
+  }
+}
+
+' ---------- зависимости ----------
+WarehouseService "1" *-- "1" CatalogRepository
+WarehouseService "1" *-- "1" StockRepository
+WarehouseService "1" *-- "1" ReportRepository
+WarehouseService --> Database : транзакции
+
+CatalogRepository --> Database
+StockRepository --> Database
+ReportRepository --> Database
+
+MainWindow --> WarehouseService : команды и отчёты
+MainWindow --> Database : состояние подключения
+MainWindow --> DbConfig : параметры БД
+MainWindow ..> ConfigStore : сохраняет настройки
+ConfigStore ..> DbConfig
+
+Database ..> DbConfig : использует
+Database ..> Result : возвращает
+Transaction --> Database : управляет
+
+note bottom of MainWindow
+  Диалоги Product / Supply / Sale / WriteOff
+  реализованы свободными функциями и
+  вызывают методы WarehouseService.
+end note
+
+note bottom of Database
+  libpq; SQL-параметры передаются через
+  PQexecParams, результаты — через RAII-обёртку Result.
+end note
+
+@enduml

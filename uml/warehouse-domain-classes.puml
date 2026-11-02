@@ -1,0 +1,236 @@
+@startuml
+skinparam dpi 140
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam nodesep 40
+skinparam ranksep 55
+skinparam ArrowFontSize 10
+skinparam ArrowColor #40566B
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #40566B
+  FontColor #172A3A
+  FontSize 10
+  HeaderFontSize 11
+}
+skinparam package {
+  BackgroundColor #F4F7FA
+  BorderColor #9FB3C8
+  FontColor #172A3A
+  FontSize 13
+  FontStyle bold
+}
+hide circle
+hide empty members
+
+title UML-диаграмма классов: данные и DTO склада
+
+package "domain — сущности и справочники" as domain {
+  class Product <<struct>> #EAF2F8 {
+    +id : int64_t
+    +sku : string
+    +name : string
+    +category : string
+    +unit : string
+    +salePriceCents : int64_t
+    +taxRateBp : int
+    +shelfLifeDays : int
+    +minStock : int
+    +stockQuantity : int
+    +stockCostCents : int64_t
+    +nearestExpiry : string
+    +status : string
+  }
+
+  class Category <<struct>> #EAF2F8 {
+    +id : int64_t
+    +name : string
+  }
+
+  class Supplier <<struct>> #EAF2F8 {
+    +id : int64_t
+    +name : string
+    +inn : string
+    +contact : string
+  }
+
+  class StockBatch <<struct>> #EAF2F8 {
+    +id : int64_t
+    +remaining : int
+    +unitCostCents : int64_t
+    +expiryDate : string
+  }
+
+  enum WriteOffReason <<enumeration>> {
+    Expired
+    Damaged
+    Other
+  }
+}
+
+package "input DTO" as inputs {
+  class ProductInput <<struct>> {
+    +sku : string
+    +name : string
+    +category : string
+    +unit : string
+    +salePriceCents : int64_t
+    +taxRateBp : int
+    +shelfLifeDays : int
+    +minStock : int
+  }
+
+  class SupplyInput <<struct>> {
+    +supplierName : string
+    +invoiceNo : string
+    +productId : int64_t
+    +quantity : int
+    +unitCostCents : int64_t
+    +expiryDate : string
+    +suppliedAt : string
+    +note : string
+  }
+
+  class SaleInput <<struct>> {
+    +productId : int64_t
+    +quantity : int
+    +unitPriceCents : int64_t
+  }
+
+  class WriteOffInput <<struct>> {
+    +productId : int64_t
+    +quantity : int
+    +reason : WriteOffReason
+    +comment : string
+  }
+}
+
+package "result DTO" as results {
+  class SaleResult <<struct>> {
+    +saleId : int64_t
+    +quantity : int
+    +revenueCents : int64_t
+    +taxCents : int64_t
+    +costCents : int64_t
+    +profitCents : int64_t
+  }
+
+  class WriteOffResult <<struct>> {
+    +batchCount : int
+    +quantity : int
+    +costCents : int64_t
+  }
+}
+
+package "row DTO" as rows {
+  class SupplyRow <<struct>> {
+    +id : int64_t
+    +suppliedAt : string
+    +supplier : string
+    +invoiceNo : string
+    +product : string
+    +quantity : int
+    +remaining : int
+    +unitCostCents : int64_t
+    +totalCostCents : int64_t
+    +expiryDate : string
+  }
+
+  class SaleRow <<struct>> {
+    +id : int64_t
+    +soldAt : string
+    +product : string
+    +quantity : int
+    +unitPriceCents : int64_t
+    +revenueCents : int64_t
+    +taxCents : int64_t
+    +costCents : int64_t
+    +profitCents : int64_t
+  }
+
+  class WriteOffRow <<struct>> {
+    +id : int64_t
+    +writtenOffAt : string
+    +product : string
+    +quantity : int
+    +reason : string
+    +costCents : int64_t
+    +batchExpiry : string
+    +comment : string
+  }
+
+  class ExpiredWriteOffRow <<struct>> {
+    +id : int64_t
+    +writtenOffAt : string
+    +product : string
+    +quantity : int
+    +costCents : int64_t
+    +batchExpiry : string
+    +comment : string
+  }
+
+  class ExpiringRow <<struct>> {
+    +supplyItemId : int64_t
+    +product : string
+    +supplier : string
+    +batchReceivedAt : string
+    +quantity : int
+    +expiryDate : string
+    +daysLeft : int
+    +unitCostCents : int64_t
+  }
+}
+
+package "report DTO" as reports {
+  class ProfitRow <<struct>> {
+    +productId : int64_t
+    +product : string
+    +quantity : int
+    +revenueCents : int64_t
+    +taxCents : int64_t
+    +costCents : int64_t
+    +profitCents : int64_t
+    +profitPerUnitCents : int64_t
+  }
+
+  class ProfitTotals <<struct>> {
+    +quantity : int
+    +revenueCents : int64_t
+    +taxCents : int64_t
+    +costCents : int64_t
+    +profitCents : int64_t
+  }
+
+  class ProfitReport <<struct>> {
+    +rows : vector<ProfitRow>
+    +totals : ProfitTotals
+  }
+}
+
+' ---------- связи ----------
+Product ..> Category : категория
+ProductInput ..> Category : категория
+SupplyInput ..> Product : productId
+SaleInput ..> Product : productId
+WriteOffInput ..> Product : productId
+WriteOffInput ..> WriteOffReason
+
+SupplyRow ..> Product : product
+SupplyRow ..> Supplier : supplier
+SaleRow ..> Product : product
+WriteOffRow ..> Product : product
+ExpiredWriteOffRow ..> Product : product
+ExpiringRow ..> Product : product
+ExpiringRow ..> Supplier : supplier
+
+ProfitReport "1" *-- "0..*" ProfitRow : rows
+ProfitReport "1" *-- "1" ProfitTotals : totals
+
+note bottom of Product
+  Денежные суммы хранятся в копейках,
+  ставка налога — в базисных пунктах
+  (2000 = 20,00 %).
+end note
+
+@enduml
