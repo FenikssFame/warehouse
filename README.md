@@ -28,7 +28,6 @@
 - CMake 3.21+;
 - Visual Studio 2022 (MSVC).
 # Архитектура
-
 ```text
 src/
     models.hpp                 структуры данных и DTO
@@ -57,3 +56,65 @@ uml/
     warehouse-application-classes.puml/png/svg
     warehouse-er.puml/png/svg
 ```
+# Модель данных
+- `product_categories` — категории товаров;
+- `suppliers` — поставщики;
+- `products` — карточки товаров;
+- `supplies` — документы поступления;
+- `supply_items` — партии товара с закупочной ценой, остатком и сроком годности;
+- `sales` — продажи;
+- `sale_items` — строки продаж с зафиксированными выручкой, налогом,
+  себестоимостью и прибылью;
+- `write_offs` — списания с привязкой к конкретной партии;
+- `v_product_stock` — представление с остатком, стоимостью остатка и статусом.
+Деньги хранятся в сотых долях белорусского рубля — капейках (`BIGINT`),
+налог — в базисных пунктах (`2000 = 20,00 %`), что исключает ошибки округления
+с плавающей точкой. В интерфейсе суммы выводятся с обозначением **Br** (BYN).
+# Подготовка PostgreSQL
+Нужна установленная PostgreSQL с утилитами `psql` и `createdb`. Пример для
+PostgreSQL 17:
+```powershell
+$pg = "C:\Program Files\PostgreSQL\17\bin"
+$env:Path = "$pg;$env:Path"
+
+createdb -U postgres warehouse
+psql -U postgres -d warehouse -v ON_ERROR_STOP=1 -f .\db\schema.sql
+psql -U postgres -d warehouse -v ON_ERROR_STOP=1 -f .\db\seed.sql
+```
+`seed.sql` создаёт 6 товаров, поставщиков, несколько партий с разными ценами,
+демонстрационную продажу и просроченное списание. Повторный запуск seed не
+дублирует товары.
+# Сборка
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+  -DPostgreSQL_ROOT="C:\Program Files\PostgreSQL\16"
+cmake --build .\build --config Release
+```
+CMake найдёт `libpq.lib`, а после сборки скопирует рядом с `.exe` необходимые
+DLL: `libpq.dll`, `libssl-3-x64.dll`, `libcrypto-3-x64.dll`, `libintl-9.dll`,
+`libiconv-2.dll`, `libwinpthread-1.dll`.
+Запуск:
+```powershell
+.\build\Release\WarehouseApp.exe
+```
+В каталоге `dist` лежит уже собранная версия.
+# Подключение
+```ini
+host=localhost
+port=5432
+database=warehouse
+user=postgres
+password=ваш_пароль
+sslmode=prefer
+```
+# Работа с программой
+Вкладки главного окна:
+1. **Товары** — остатки, цена, НДС, ближайший срок годности, статус.
+2. **Поступления** — оформление партии от поставщика.
+3. **Продажи** — продажа с контролем остатка и расчётом прибыли.
+4. **Списания** — причина и комментарий; для `Истёк срок` списываются только
+   просроченные партии.
+5. **Отчёты** — прибыль по товарам, просроченные списания, товары с близким
+   сроком годности.
+Новые категории и поставщики создаются автоматически при вводе имени в
+соответствующем поле.
