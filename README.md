@@ -20,3 +20,40 @@
 - графический интерфейс на Win32 API (без Qt и сторонних UI-библиотек);
 - хранение данных в PostgreSQL;
 - параметризованные SQL-запросы и транзакции.
+# Технологии
+- C++20;
+- Win32 API / Common Controls;
+- PostgreSQL 14+;
+- libpq (C API PostgreSQL);
+- CMake 3.21+;
+- Visual Studio 2022 (MSVC).
+# Архитектура
+
+```text
+src/
+    models.hpp                 структуры данных и DTO
+    db/
+        Database.hpp/.cpp      подключение, параметризованные запросы, транзакции
+    repository/
+        CatalogRepository      товары, категории, поставщики
+        StockRepository        поступления, партии, продажи, списания
+        ReportRepository       отчёты и выборки
+    service/
+        WarehouseService       бизнес-правила, FEFO, расчёт налога и прибыли
+    ui/
+        MainWindow             главное окно, вкладки, таблицы
+        Dialogs                диалоги товара, поступления, продажи и списания
+    util/
+        Config                 warehouse.ini
+        Format                 деньги, проценты, даты, числа
+        Text                   UTF-8 ↔ UTF-16 для Win32
+db/
+    schema.sql                 схема PostgreSQL
+    seed.sql                   демонстрационные данные
+tests/
+    service_smoke.cpp          консольная проверка сервисного слоя
+uml/
+    warehouse-domain-classes.puml/png/svg
+    warehouse-application-classes.puml/png/svg
+    warehouse-er.puml/png/svg
+```
